@@ -102,6 +102,7 @@ async def add_chatbot(
     name: str,
     creator_id: str,
     link: str,
+    ranked_ad_ids: List[str],
     delivery_frequency: str = "high",
     source=ChatbotSource.openai_gpts,
 ) -> ChatbotDTO:
@@ -112,7 +113,7 @@ async def add_chatbot(
     # Verify input
     creator_collection = DatabaseClient.get_collection("creators")
 
-    creator = await creator_collection.find_one({"_id": ObjectId(creator_id)})
+    creator = await creator_collection.find_one({"email": creator_id})
 
     if creator is None:
         raise HTTPException(status_code=400, detail="Creator email not found.")
@@ -127,6 +128,7 @@ async def add_chatbot(
         name=name,
         source=source,
         amazon_product_key=amazon_product_key,
+        ranked_ad_ids=ranked_ad_ids,
         link=link,
         creator_email=creator["email"],
         api_key=api_key,

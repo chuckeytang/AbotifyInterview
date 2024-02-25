@@ -9,7 +9,7 @@ python3 -m src.scripts.creator.add_creator --email "first_creator@proton.me"
 ```
 ### Add a chatbot
 ```shell
-python3 -m src.scripts.chatbot.add_chatbot "first_chatbot" --source "openai_gpts" --link "https://firs_chatbot.com" --amazon_product_key "key" --creator_username "first_creator”
+python3 -m src.scripts.chatbot.add_chatbot "first_chatbot" --source "openai_gpts" --link "https://firs_chatbot.com" --amazon_product_key "markusmak1-20" --creator_username "first_creator" --creator_email "first_creator@proton.me"
 ```
 Note: amazon_product_key is just the tracking id, it's better to create a new one on the amazon affiliate website. 
 

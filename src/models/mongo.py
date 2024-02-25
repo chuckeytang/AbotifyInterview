@@ -35,5 +35,13 @@ class DatabaseClient:
             raise ValueError(f"Collection {collection_name} does not exist")
         return cls.db[collection_name]
 
+    @classmethod
+    async def clear_all_collections(cls):
+        """
+        Clear all documents from all collections in the database.
+        """
+        for collection_name in COLLECTIONS:
+            collection = cls.get_collection(collection_name)
+            await collection.delete_many({})  # Deletes all documents in the collection
 
 DatabaseClient.connect()

@@ -2,7 +2,6 @@ from unittest.mock import MagicMock, patch, call, Mock
 import pytest
 from fastapi.testclient import TestClient
 import datetime
-from src.api.endpoints.get_product_info import get_product_info
 from main import app
 from src.models.api_event import ApiEvent, ApiType
 from src.models.ad import Ad, convert_ad_to_ad_dto
@@ -10,111 +9,100 @@ import numpy as np
 from src.models.base import PyObjectId
 from bson import ObjectId
 
-client = TestClient(app)
+from src.models.mongo import DatabaseClient
+from src.scripts.generators.generate_amazon_ads import generate_amazon_ads
+from src.scripts.generators.generate_amazon_product_keys import generate_amazon_product_keys
+from src.scripts.generators.generate_chatbots import generate_chatbots
+from src.scripts.generators.generate_creator import generate_creator
 
-MOCK_DATETIME = datetime.datetime(2023, 12, 25, 23, 38, 19, 945688)
-MOCK_AD_ID = PyObjectId("507f1f77bcf86cd799439011")
-MOCK_AD = mock_ad = Ad(
-    source="Example Source",
-    generic_product_URL="http://example.com/{amazon_affiliate_id}product",
-    description_for_chatbot="Example description",
-    full_content="Full content of the ad",
-    product_title="Example Product Title",
-    embedding_spacy=np.array([1, 2, 3]),
-    last_time_accessed=MOCK_DATETIME,
-)
-MOCK_AD.id = MOCK_AD_ID
-
-
-@pytest.fixture
-async def mock_get_ads_by_query():
-    mock_ads_by_query = MagicMock()
-    mock_ads_by_query.return_value = [MOCK_AD]
-
-    return mock_ads_by_query
-
-
-@pytest.fixture
-def mock_update_ads_last_accessed_time():
-    return MagicMock()
-
-
-@pytest.fixture
-def mock_log_api_event():
-    return MagicMock()
-
-
-# Wrapper function to return the fixed datetime value
-def fixed_datetime_now():
-    return MOCK_DATETIME
-
-
-async def mock_update_ads_last_accessed_time(*args, **kwargs):
-    pass
-
-
-async def mock_log_api_event(*args, **kwargs):
-    pass
-
-
-@patch("src.api.get_product_info.get_amazon_product_key")
-@patch("src.api.get_product_info.create_get_product_info_api_event")
-@patch("src.api.get_product_info.datetime")
-@patch("src.api.get_product_info.log_api_event")
-@patch(
-    "src.api.get_product_info.update_ads_last_accessed_time",
-    side_effect=mock_update_ads_last_accessed_time,
-)
-@patch("src.api.get_product_info.get_ads_by_query")
-def test_get_product_info_with_valid_query(
-    mock_get_ads_by_query,
-    mock_update_ads_last_accessed_time,
-    mock_log_api_event,
-    mock_datetime,
-    mock_create_get_product_info_api_event,
-    mock_get_amazon_product_key,
-):
+appclient = TestClient(app)
+@pytest.mark.anyio
+async def test_get_product_info_with_valid_query():
     # Setup
-    test_query = "getelectronicrecommendations"
-    test_api_key = "test_api_key"
-    headers = {"apikey": test_api_key}
+    client = DatabaseClient()
+    await client.clear_all_collections()
+    
+    # 执行初始化脚本
+    await generate_creator()
+    await generate_amazon_product_keys()
+    await generate_amazon_ads()
+    await generate_chatbots()
 
-    SAMPLE_AMAZON_PRODUCT_KEY = "mock_amazon_product_key"
-    expected_response = convert_ad_to_ad_dto(MOCK_AD, SAMPLE_AMAZON_PRODUCT_KEY)
+    test_query = "book shelf"
+    chatbots_collection = client.get_collection("chatbots")
+    first_chatbot = await chatbots_collection.find_one({"name": "first_chatbot"})
+    second_chatbot = await chatbots_collection.find_one({"name": "second_chatbot"})
+    api_key = first_chatbot["api_key"]
 
-    MOCK_API_EVENT = ApiEvent(
-        id=ObjectId("658a2df586c8887b78699c3e"),
-        ads_ids=[MOCK_AD_ID],
-        api_key=test_api_key,
-        api_type=ApiType.get_product_info,
-        input_fields={"query": test_query, "api_key": test_api_key},
-        output_fields=expected_response,
-        call_receive_time=MOCK_DATETIME,
-        call_end_time=MOCK_DATETIME,
-    )
-
-    mock_create_get_product_info_api_event.return_value = MOCK_API_EVENT
-    mock_get_ads_by_query.return_value = [MOCK_AD]
-    mock_update_ads_last_accessed_time.return_value = None
-    mock_log_api_event.return_value = None
-    mock_datetime.now.return_value = MOCK_DATETIME
-    mock_get_amazon_product_key.return_value = SAMPLE_AMAZON_PRODUCT_KEY
-
+    # -----------TestCase 1-----------
     # Action
-    response = client.get(f"/get_product_info?query={test_query}", headers=headers)
+    # First call the get_product_info invoking first_chatbot with query 'book shelf' 
+    response = appclient.get(f"/api/get_product_info?query={test_query}&api_key={api_key}")
 
     # Verification
     assert response.status_code == 200
+    response_data = response.json()
 
-    response_dict = response.json()[0]
-    response_dict.pop("_id")
-    expected_response_dict = expected_response.model_dump(exclude={"id": True})
-    assert response_dict == expected_response_dict
+    # It returns the most relevant product link judging by key word mapping scores in both ad's product_title and full_content
+    expected_response_data_call1 = 'https://www.amazon.com/s?k=book+shelf&crid=PLRQIKRF1L2&sprefix=book%2Caps%2C1220&ref=nb_sb_ss_ts-doa-p_1_4'
+    assert response_data == expected_response_data_call1
 
-    mock_get_ads_by_query.assert_called_once_with(test_query, test_api_key)
+    # -----------TestCase 2-----------
+    # Action
+    # Second call the get_product_info invoking first_chatbot AGAIN with query 'book shelf' 
+    response = appclient.get(f"/api/get_product_info?query={test_query}&api_key={api_key}")
 
-    mock_update_ads_last_accessed_time.assert_called_once_with(
-        [MOCK_AD_ID], MOCK_DATETIME
-    )
+    # Verification
+    assert response.status_code == 200
+    response_data = response.json()
 
-    mock_log_api_event.assert_called_once_with(MOCK_API_EVENT)
+    # It returns the second most relevant product link judging by key word mapping scores in both ad's 
+    # because the most relevant product is shown and disposed by filtering the logs in api_events
+    expected_response_data_call2 = 'https://www.amazon.com/s?k=book+shelf&page=2&crid=PLRQIKRF1L2&qid=1708855530&sprefix=book%2Caps%2C1220&ref=sr_pg_2'
+    assert response_data == expected_response_data_call2
+
+    # -----------TestCase 3-----------
+    # Action
+    # Third call the get_product_info invoking second_chatbot with query 'book shelf' 
+    api_key = second_chatbot["api_key"]
+    response = appclient.get(f"/api/get_product_info?query={test_query}&api_key={api_key}")
+    
+    # Verification
+    assert response.status_code == 200
+    response_data = response.json()
+
+    # It returns the most relevant product link again
+    # because it is another chatbot of those no ads have been shown yet
+    assert response_data == expected_response_data_call1
+
+    # -----------TestCase 4-----------
+    # Action
+    # Fourth call the get_product_info invoking first_chatbot with query 'water flosser' 
+    api_key = first_chatbot["api_key"]
+    test_query = "water flosser" 
+    response = appclient.get(f"/api/get_product_info?query={test_query}&api_key={api_key}")
+
+    # Verification
+    assert response.status_code == 200
+    response_data = response.json()
+
+    # For those query not having queried yet, it will work properly
+    # It returns the most relevant product link judging by key word mapping scores in both ad's 
+    expected_response_data_call4 = 'https://www.amazon.com/s?k=water+flosser&page=2&crid=1ZP37TP8LITX5&qid=1708855262&sprefix=%2Caps%2C699&ref=sr_pg_3'
+    assert response_data == expected_response_data_call4
+
+    # -----------TestCase 5-----------
+    # Action
+    # Fifth call the get_product_info invoking first_chatbot with query 'easter book' 
+    # a query word it does not familiar
+    api_key = first_chatbot["api_key"]
+    test_query = "easter book" 
+    response = appclient.get(f"/api/get_product_info?query={test_query}&api_key={api_key}")
+
+    # Verification
+    assert response.status_code == 200
+    response_data = response.json()
+
+    # It returns the book shelf ad not shown before acording to its score assess algorithm
+    expected_response_data_call5 = 'https://www.amazon.com/s?k=book+shelf&page=2&crid=PLRQIKRF1L2&qid=1708855530&sprefix=book%2Caps%2C1220&ref=sr_pg_5'
+    assert response_data == expected_response_data_call5
