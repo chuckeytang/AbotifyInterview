@@ -15,7 +15,7 @@ class TestAccountOperations(unittest.TestCase):
 
         # Action
         response = self.client.post(
-            f"/api/creator/create_account?email={test_email}&api_key=secretkey666"
+            f"/account?email={test_email}&api_key=secretkey666"
         )
 
         # Verification

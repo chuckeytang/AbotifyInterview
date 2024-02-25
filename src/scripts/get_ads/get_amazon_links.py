@@ -26,24 +26,22 @@ logger = logging.getLogger(__name__)
 logger.addHandler(stdout_handler)
 
 
-def store_link_for_amazon_search(url: str, search_keywords: str) -> InsertOneResult:
+async def store_link_for_amazon_search(url: str, search_keywords: str, title_for_product, full_content: str) -> InsertOneResult:
     description_for_chatbot = f"Amazon search results for '{search_keywords}'"
 
     ad = Ad(
         source="Amazon|associates|search_results",
         generic_product_URL=url,
-        full_content="",
-        product_title=description_for_chatbot,
+        full_content=full_content,
+        product_title=title_for_product,
         description_for_chatbot=description_for_chatbot,
         last_time_accessed=datetime.utcnow(),
     )
-    client = MONGO_URL
-    db = client["backend"]
-    collection = db["ads"]
-    ads_id = collection.insert_one(ad.model_dump())
+    client = DatabaseClient()
+    collection = client.get_collection("ads")
+    ads_id = await collection.insert_one(ad.model_dump())
 
     return ads_id
-
 
 def enriched_description_for(search_keywords: str) -> str:
     client = OpenAI()
@@ -70,6 +68,8 @@ def enriched_description_for(search_keywords: str) -> str:
 
 class AmazonAutomator:
     def __init__(self):
+        return
+    
         self.link_to_any_page_url = "https://affiliate-program.amazon.com/home/textlink/general?ac-ms-src=ac-nav"
         user_data_dir = f"{os.getenv('PROFILE_PATH')}/Profile"
         logger.debug("user data dir:", user_data_dir)
@@ -138,38 +138,42 @@ class AmazonAutomator:
         return self.driver.current_url
 
     # next key: 101
-    def add_amazon_product_keys(self, start, end) -> None:
+    async def add_amazon_product_keys(self, start, end=-1) -> None:
         client = DatabaseClient()
         key_collection = client.get_collection("extra_amazon_product_keys")
 
-        link = "https://affiliate-program.amazon.com/home/account/tag/manage"
-        self.driver.get(link)
-
+        # manually add keys
         for num in range(start, end + 1):
-            self.driver.find_element(
-                By.XPATH, '//*[(@id = "a-autoid-3-announce")]'
-            ).click()
-            product_key = "product_key_" + str(num)
-            time.sleep(2)
-            self.driver.find_element(By.ID, "ac-tag-create-tag_name").send_keys(
-                product_key
-            )
-            time.sleep(1)
+            await key_collection.insert_one({"key": f"product_key_{num}-23"})
 
-            # click create button
-            self.driver.find_element(
-                By.XPATH, '//*[(@id = "a-autoid-1-announce")]'
-            ).click()
-            time.sleep(3)
+        # link = "https://affiliate-program.amazon.com/home/account/tag/manage"
+        # self.driver.get(link)
 
-            # click close button
-            self.driver.find_element(
-                By.XPATH, '//*[(@id = "a-autoid-2-announce")]'
-            ).click()
-            time.sleep(3)
+        # for num in range(start, end + 1):
+        #     self.driver.find_element(
+        #         By.XPATH, '//*[(@id = "a-autoid-3-announce")]'
+        #     ).click()
+        #     product_key = "product_key_" + str(num)
+        #     time.sleep(2)
+        #     self.driver.find_element(By.ID, "ac-tag-create-tag_name").send_keys(
+        #         product_key
+        #     )
+        #     time.sleep(1)
 
-            key_collection.insert_one({"key": product_key + "-20"})
-            time.sleep(2)
+        #     # click create button
+        #     self.driver.find_element(
+        #         By.XPATH, '//*[(@id = "a-autoid-1-announce")]'
+        #     ).click()
+        #     time.sleep(3)
+
+        #     # click close button
+        #     self.driver.find_element(
+        #         By.XPATH, '//*[(@id = "a-autoid-2-announce")]'
+        #     ).click()
+        #     time.sleep(3)
+
+        #     key_collection.insert_one({"key": product_key + "-20"})
+        #     time.sleep(2)
         return
 
     def get_link_for_amazon_search(
