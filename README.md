@@ -1,30 +1,25 @@
 ---
-title: FastAPI
-description: A FastAPI server
+title: Chatbot Advertisement Query Service
+description: A service for chatbots to query relevant advertisements
 tags:
+  - chatbot
   - fastapi
-  - hypercorn
-  - python
+  - asyncio
 ---
 
-# FastAPI Example
+# 🤖 Chatbot Ad Query README
 
-This example starts up a [FastAPI](https://fastapi.tiangolo.com/) server.
+## 🌐 Understanding the Overall Business
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/-NvLj4?referralCode=CRJ8FE)
-## ✨ Features
+**👉 Chatbot as a User**:  
+Chatbots, acting as users, send requests to the `/get_product_info` endpoint to query for advertisements related to a specific keyword. These advertisements have not yet been shown under the management of each individual chatbot. Different chatbots manage their own list of advertisements and filter out those that have already been displayed, operating independently from each other.
 
-- FastAPI
-- [Hypercorn](https://hypercorn.readthedocs.io/)
-- Python 3
+## 🔍 Key Algorithm Explanation
 
-## 💁‍♀️ How to use
+**🌟 Relevance Algorithm for Finding Ads**:  
+The core algorithm of this assessment is finding the most relevant advertisements based on search queries. A frequency-based scoring algorithm is used where the more a query keyword appears in the ad's title or content, the higher its relevance. The scoring weight for title appearances is higher (weight of 3) compared to content appearances (weight of 1). These weights can be adjusted according to business needs.
 
-- Clone locally and install packages with pip using `pip install -r requirements.txt`
-- Run locally using `hypercorn main:app --reload`
-- Build docker image locally using `nixpacks build .`
+## 🧪 Test Case Function Entry
 
-## 📝 Notes
-
-- To learn about how to use FastAPI with most of its features, you can visit the [FastAPI Documentation](https://fastapi.tiangolo.com/tutorial/)
-- To learn about Hypercorn and how to configure it, read their [Documentation](https://hypercorn.readthedocs.io/)
+**🔬 Testing**:  
+Test cases are located in `src/api/endpoints/get_product_info_test.py`. These tests should be conducted using the asyncio model.
